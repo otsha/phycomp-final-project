@@ -8,19 +8,25 @@
 #include <SerialFlash.h>
 
 // GUItool: begin automatically generated code
-AudioSynthWaveform       bleep;      //xy=160,256
-AudioSynthWaveform       bass;      //xy=189,524
-AudioEffectEnvelope      bleepEnv;      //xy=408,275
-AudioEffectEnvelope      bassEnv;      //xy=459,500
-AudioMixer4              mixer1;         //xy=812,374
+AudioSynthWaveform       bleep;      //xy=125,146
+AudioSynthWaveform       bass;      //xy=140,488
+AudioEffectEnvelope      bleepEnv;      //xy=347,181
+AudioEffectEnvelope      bassEnv;      //xy=390,543
+AudioEffectDelay         bleepDel;         //xy=486,372
+AudioMixer4              bleepDelMix;         //xy=696,299
+AudioMixer4              mixer1;         //xy=919,466
 AudioOutputI2S           i2s1;           //xy=1067,369
 AudioConnection          patchCord1(bleep, bleepEnv);
 AudioConnection          patchCord2(bass, bassEnv);
-AudioConnection          patchCord3(bleepEnv, 0, mixer1, 0);
-AudioConnection          patchCord4(bassEnv, 0, mixer1, 1);
-AudioConnection          patchCord5(mixer1, 0, i2s1, 0);
-AudioConnection          patchCord6(mixer1, 0, i2s1, 1);
+AudioConnection          patchCord3(bleepEnv, bleepDel);
+AudioConnection          patchCord4(bleepEnv, 0, bleepDelMix, 0);
+AudioConnection          patchCord5(bassEnv, 0, mixer1, 1);
+AudioConnection          patchCord6(bleepDel, 0, bleepDelMix, 1);
+AudioConnection          patchCord7(bleepDelMix, 0, mixer1, 0);
+AudioConnection          patchCord8(mixer1, 0, i2s1, 0);
+AudioConnection          patchCord9(mixer1, 0, i2s1, 1);
 // GUItool: end automatically generated code
+
 
 AudioControlSGTL5000 codec;
 
@@ -36,8 +42,11 @@ void setup() {
   bleepEnv.attack(25);
   bleepEnv.sustain(0);
   bleepEnv.decay(100);
+  bleepDel.delay(0, 250);
+  bleepDelMix.gain(0, 1);
+  bleepDelMix.gain(1, 0.25);
 
-  bass.begin(WAVEFORM_SQUARE);
+  bass.begin(WAVEFORM_TRIANGLE);
   bass.frequency(440);
   bass.amplitude(1);
   bassEnv.attack(1000);
@@ -45,9 +54,9 @@ void setup() {
   bassEnv.decay(1000);
 
   mixer1.gain(0, 0.20);
-  mixer1.gain(1, 0.15);
+  mixer1.gain(1, 0.20);
 
-  AudioMemory(18);
+  AudioMemory(127);
 
   codec.enable();
   codec.volume(0.25);
@@ -67,6 +76,7 @@ void loop() {
     bleep.frequency(getRandomNote(4, 7));
     bleepEnv.decay(random(100, 1000));
     bleepEnv.noteOn();
+    bleepDel.delay(0, random(100, 300));
     pTime = cTime;
   }
 
