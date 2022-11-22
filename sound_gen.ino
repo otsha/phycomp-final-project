@@ -1,3 +1,5 @@
+#include "Note.h"
+#include "Freq.h"
 
 #include <Audio.h>
 #include <Wire.h>
@@ -5,19 +7,23 @@
 #include <SD.h>
 #include <SerialFlash.h>
 
-#include "Note.h"
-#include "Freq.h"
-
 // GUItool: begin automatically generated code
-AudioSynthWaveformSine   sine1;          //xy=158,203
-AudioEffectEnvelope      envelope1;      //xy=338,239
-AudioMixer4              mixer1;         //xy=742,338
-AudioOutputI2S           i2s1;           //xy=997,333
-AudioConnection          patchCord1(sine1, envelope1);
-AudioConnection          patchCord2(envelope1, 0, mixer1, 0);
-AudioConnection          patchCord3(mixer1, 0, i2s1, 0);
-AudioConnection          patchCord4(mixer1, 0, i2s1, 1);
+AudioSynthWaveform       bleep;      //xy=160,256
+AudioSynthWaveform       bass;      //xy=189,524
+AudioEffectEnvelope      bleepEnv;      //xy=408,275
+AudioEffectEnvelope      bassEnv;      //xy=459,500
+AudioMixer4              mixer1;         //xy=812,374
+AudioOutputI2S           i2s1;           //xy=1067,369
+AudioConnection          patchCord1(bleep, bleepEnv);
+AudioConnection          patchCord2(bass, bassEnv);
+AudioConnection          patchCord3(bleepEnv, 0, mixer1, 0);
+AudioConnection          patchCord4(bassEnv, 0, mixer1, 1);
+AudioConnection          patchCord5(mixer1, 0, i2s1, 0);
+AudioConnection          patchCord6(mixer1, 0, i2s1, 1);
 // GUItool: end automatically generated code
+
+float pTime;
+float stepLength = 1000;
 
 AudioControlSGTL5000 codec;
 
@@ -25,15 +31,21 @@ void setup() {
   Serial.begin(9600);
   Wire.begin();
 
-  sine1.frequency(440);
-  sine1.amplitude(1);
-  envelope1.attack(10);
-  envelope1.hold(0);
-  envelope1.decay(100);
-  envelope1.sustain(0);
-  envelope1.release(100);
+  bleep.frequency(440);
+  bleep.amplitude(1);
+  bleepEnv.attack(25);
+  bleepEnv.sustain(0);
+  bleepEnv.decay(100);
 
-  mixer1.gain(0, 0.25);
+  bass.begin(WAVEFORM_SQUARE);
+  bass.frequency(440);
+  bass.amplitude(1);
+  bassEnv.attack(1000);
+  bassEnv.sustain(0);
+  bassEnv.decay(1000);
+
+  mixer1.gain(0, 0.20);
+  mixer1.gain(1, 0.15);
 
   AudioMemory(18);
 
@@ -42,22 +54,34 @@ void setup() {
 
   AudioProcessorUsageMaxReset();
   AudioMemoryUsageMaxReset();
+
+  pTime = millis();
 }
 
-float scale[] = {C, D, E, G, A};
+int scale[] = {C, D, E, G, A};
 
 void loop() {
-
-  // Random Synth
+  // Bleep
   int scaleIndex = round(random(0, 4));
   float noteFreq = scale[scaleIndex] / 1000.0;
   Note n(noteFreq);
-  sine1.frequency(n.oct(random(4, 7)));
-  envelope1.decay(random(100, 1000));
+  bleep.frequency(n.oct(random(4, 7)));
+  bleepEnv.decay(random(100, 1000));
 
-  // Play note
-  envelope1.noteOn();
-  
+  if (random(100) > 25) {
+    bleepEnv.noteOn();
+  }
+
+  if (random(100) > 66) {
+    // Bass
+    scaleIndex = round(random(0, 4));
+    noteFreq = scale[scaleIndex] / 1000.0;
+    Note b(noteFreq);
+    bass.frequency(b.oct(random(2, 4)));
+
+    bassEnv.noteOn();
+  }
+
   delay(500);
 }
 
