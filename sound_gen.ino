@@ -22,10 +22,10 @@ AudioConnection          patchCord5(mixer1, 0, i2s1, 0);
 AudioConnection          patchCord6(mixer1, 0, i2s1, 1);
 // GUItool: end automatically generated code
 
-float pTime;
-float stepLength = 1000;
-
 AudioControlSGTL5000 codec;
+
+float pTime;
+float bpTime;
 
 void setup() {
   Serial.begin(9600);
@@ -56,34 +56,32 @@ void setup() {
   AudioMemoryUsageMaxReset();
 
   pTime = millis();
+  bpTime = millis();
 }
 
 int scale[] = {C, D, E, G, A};
 
 void loop() {
-  // Bleep
+  float cTime = millis();
+  if (cTime - pTime >= 1000.0) {
+    bleep.frequency(getRandomNote(4, 7));
+    bleepEnv.decay(random(100, 1000));
+    bleepEnv.noteOn();
+    pTime = cTime;
+  }
+
+  if (cTime - bpTime >= 3000.0) {
+    bass.frequency(getRandomNote(2, 4));
+    bassEnv.noteOn();
+    bpTime = cTime;
+  }
+}
+
+float getRandomNote(int minOct, int maxOct) {
   int scaleIndex = round(random(0, 4));
   float noteFreq = scale[scaleIndex] / 1000.0;
   Note n(noteFreq);
-  bleep.frequency(n.oct(random(4, 7)));
-  bleepEnv.decay(random(100, 1000));
-
-  if (random(100) > 25) {
-    bleepEnv.noteOn();
-  }
-
-  if (random(100) > 66) {
-    // Bass
-    scaleIndex = round(random(0, 4));
-    noteFreq = scale[scaleIndex] / 1000.0;
-    Note b(noteFreq);
-    bass.frequency(b.oct(random(2, 4)));
-
-    bassEnv.noteOn();
-  }
-
-  delay(500);
+  return n.oct(random(minOct, maxOct));
 }
-
 
 
