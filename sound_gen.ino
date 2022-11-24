@@ -1,6 +1,7 @@
 #include "Note.h"
 #include "Freq.h"
 #include "SensorUtility.h"
+#include "LFO.h"
 #include <SparkFun_GridEYE_Arduino_Library.h>
 
 #include <Audio.h>
@@ -40,6 +41,8 @@ float dTime;
 
 GridEYE sensor;
 int pixels[64];
+
+LFO lfo(0.01);
 
 void setup() {
   Serial.begin(9600);
@@ -112,6 +115,9 @@ void loop() {
     readSensor();
     outputSerialData(pixels);
   }
+
+  Serial.println(lfo.getValue());
+  lfo.update();
 }
 
 float getRandomNote(int minOct, int maxOct) {
