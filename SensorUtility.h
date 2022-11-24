@@ -1,4 +1,4 @@
-#include <iterator>
+int zone_perc[] = {30, 31, 38, 39};
 
 /**
 * Print out the data so that it can be accessed within Processing.
@@ -11,5 +11,14 @@ void outputSerialData(int pixels[]) {
 
   Serial.println("");
 };
+
+float getZoneAverage(int pixels[], int indices[]) {
+  float sum = 0;
+  int size = sizeof(indices);
+  for (int i = 0; i < size; i++) {
+    sum += pixels[indices[i]];
+  }
+  return sum / size * 1.0;
+}
 
 

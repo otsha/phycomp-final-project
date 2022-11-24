@@ -88,7 +88,7 @@ int scale[] = {C, D, E, G, A};
 
 void loop() {
   float cTime = millis();
-  if (cTime - pTime >= 1000.0) {
+  if (cTime - pTime >= 1000.0) {    
     bleep.frequency(getRandomNote(4, 7));
     bleepEnv.decay(random(100, 1000));
     bleepEnv.noteOn();
@@ -103,7 +103,8 @@ void loop() {
   }
 
   if (cTime - dTime >= 250.0) {
-    if (random(100) >= 50) {
+    float avg = getZoneAverage(pixels, zone_perc);
+    if (random(100) >= 50 && avg > 23) {
       perc.noteOn();
     }
     dTime = cTime;
