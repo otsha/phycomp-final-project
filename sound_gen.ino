@@ -1,5 +1,7 @@
 #include "Note.h"
 #include "Freq.h"
+#include "SensorUtility.h"
+#include <SparkFun_GridEYE_Arduino_Library.h>
 
 #include <Audio.h>
 #include <Wire.h>
@@ -35,6 +37,9 @@ AudioControlSGTL5000 codec;
 float pTime;
 float bpTime;
 float dTime;
+
+GridEYE sensor;
+int pixels[64];
 
 void setup() {
   Serial.begin(9600);
@@ -72,6 +77,8 @@ void setup() {
   AudioProcessorUsageMaxReset();
   AudioMemoryUsageMaxReset();
 
+  sensor.begin();
+
   pTime = millis();
   bpTime = millis();
   dTime = millis();
@@ -100,6 +107,9 @@ void loop() {
       perc.noteOn();
     }
     dTime = cTime;
+    
+    readSensor();
+    outputSerialData(pixels);
   }
 }
 
@@ -110,4 +120,9 @@ float getRandomNote(int minOct, int maxOct) {
   return n.oct(random(minOct, maxOct));
 }
 
+void readSensor() {
+  for (int i = 0; i < 64; i++) {
+    pixels[i] = sensor.getPixelTemperature(i);
+  }
+}
 
