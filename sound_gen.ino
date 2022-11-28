@@ -39,6 +39,10 @@ float pTime;
 float bpTime;
 float dTime;
 
+Note bleepNote;
+Note bassNote;
+Note drumNote;
+
 GridEYE sensor;
 int pixels[64];
 
@@ -92,7 +96,7 @@ int scale[] = {C, D, E, G, A};
 void loop() {
   float cTime = millis();
   if (cTime - pTime >= 1000.0) {    
-    bleep.frequency(getRandomNote(4, 7));
+    bleep.frequency(bleepNote.getRandomNoteFromScale(scale, 4, 7));
     bleepEnv.decay(random(100, 1000));
     bleepEnv.noteOn();
     bleepDel.delay(0, random(100, 300));
@@ -100,7 +104,7 @@ void loop() {
   }
 
   if (cTime - bpTime >= 3000.0) {
-    bass.frequency(getRandomNote(2, 4));
+    bass.frequency(bassNote.getRandomNoteFromScale(scale, 2, 4));
     bassEnv.noteOn();
     bpTime = cTime;
   }
@@ -118,13 +122,6 @@ void loop() {
 
   Serial.println(lfo.getValue());
   lfo.update();
-}
-
-float getRandomNote(int minOct, int maxOct) {
-  int scaleIndex = round(random(0, 4));
-  float noteFreq = scale[scaleIndex] / 1000.0;
-  Note n(noteFreq);
-  return n.oct(random(minOct, maxOct));
 }
 
 void readSensor() {

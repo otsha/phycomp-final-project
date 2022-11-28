@@ -1,4 +1,4 @@
-enum Freqs {
+enum Freq {
   C = 16350,
   CSharp = 17320,
   D = 18350,
