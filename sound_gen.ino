@@ -46,7 +46,8 @@ Note drumNote;
 GridEYE sensor;
 int pixels[64];
 
-LFO lfo(0.01);
+LFO lfo(1);
+LFO lfo2(8);
 
 void setup() {
   Serial.begin(9600);
@@ -112,6 +113,16 @@ void loop() {
   if (cTime - dTime >= 250.0) {
     float avg = getZoneAverage(pixels, zone_perc);
     if (random(100) >= 50 && avg > 23) {
+
+      float freq = 300.0 + (lfo.getValue() * 200);
+      perc.frequency(freq);
+
+      if (random(100) >= 75) {
+        perc.pitchMod(abs(lfo2.getValue()));
+      } else {
+        perc.pitchMod(0.65);
+      }
+
       perc.noteOn();
     }
     dTime = cTime;
@@ -120,8 +131,8 @@ void loop() {
     outputSerialData(pixels);
   }
 
-  Serial.println(lfo.getValue());
   lfo.update();
+  lfo2.update();
 }
 
 void readSensor() {
