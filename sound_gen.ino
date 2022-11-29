@@ -18,10 +18,11 @@ AudioSynthSimpleDrum     perc;          //xy=382,648
 AudioEffectEnvelope      bassEnv;      //xy=390,543
 AudioEffectDelay         bleepDel;         //xy=486,372
 AudioSynthKarplusStrong  pluck;        //xy=564,723
-AudioFilterStateVariable bassFlt;        //xy=606,501
+AudioFilterStateVariable bassFlt;        //xy=677,384
 AudioMixer4              bleepDelMix;         //xy=678,250
-AudioMixer4              mixer1;         //xy=919,466
-AudioOutputI2S           i2s1;           //xy=1116,369
+AudioMixer4              mixer1;         //xy=903,408
+AudioEffectBitcrusher    bitcrusher1;    //xy=1077,406
+AudioOutputI2S           i2s1;           //xy=1281,409
 AudioConnection          patchCord1(bleep, bleepEnv);
 AudioConnection          patchCord2(bass, bassEnv);
 AudioConnection          patchCord3(bleepEnv, bleepDel);
@@ -32,11 +33,10 @@ AudioConnection          patchCord7(bleepDel, 0, bleepDelMix, 1);
 AudioConnection          patchCord8(pluck, 0, mixer1, 3);
 AudioConnection          patchCord9(bassFlt, 0, mixer1, 1);
 AudioConnection          patchCord10(bleepDelMix, 0, mixer1, 0);
-AudioConnection          patchCord11(mixer1, 0, i2s1, 0);
-AudioConnection          patchCord12(mixer1, 0, i2s1, 1);
+AudioConnection          patchCord11(mixer1, bitcrusher1);
+AudioConnection          patchCord12(bitcrusher1, 0, i2s1, 0);
+AudioConnection          patchCord13(bitcrusher1, 0, i2s1, 1);
 // GUItool: end automatically generated code
-
-
 
 
 AudioControlSGTL5000 codec;
@@ -89,6 +89,8 @@ void setup() {
   mixer1.gain(1, 0.20);
   mixer1.gain(2, 0.15);
 
+  bitcrusher1.bits(16);
+
   AudioMemory(127);
 
   codec.enable();
@@ -125,6 +127,10 @@ void loop() {
     setScale(pentatonicMinor);
   }
 
+  float sensorAvg = getSensorAverage(pixels);
+  float crushFactor = 16 - map(sensorAvg, 23, 35, 0.0, 1.0) * 13;
+  bitcrusher1.bits(crushFactor);
+
   playBlink();
   playPluck();
   playBass();
@@ -137,7 +143,7 @@ void loop() {
     percPreviousTime = currentTime;
     
     readSensor();
-    //outputSerialData(pixels);
+    outputSerialData(pixels);
   }
 
   bassLFO.update();

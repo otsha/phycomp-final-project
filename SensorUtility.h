@@ -25,4 +25,12 @@ float getZoneAverage(int pixels[], int indices[]) {
   return sum / size * 1.0;
 }
 
+float getSensorAverage(int pixels[]) {
+  float sum = 0;
+  for (int i = 0; i < 64; i++) {
+    sum += pixels[i];
+  }
+  return sum / 64.0;
+}
+
 
