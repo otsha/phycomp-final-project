@@ -85,9 +85,10 @@ void setup() {
   perc.length(50);
   perc.pitchMod(0.65);
 
-  mixer1.gain(0, 0.20);
+  mixer1.gain(0, 0.15);
   mixer1.gain(1, 0.20);
   mixer1.gain(2, 0.15);
+  mixer1.gain(3, 0.15);
 
   bitcrusher1.bits(16);
 
@@ -110,6 +111,7 @@ void setup() {
 
 int pentatonicMajor[5] = {C, D, E, G, A};
 int pentatonicMinor[5] = {A, B, C, E, G};
+int chaos[5] = {C, CSharp, E, F, G};
 int scale[5];
 
 void setScale(int newScale[]) {
@@ -121,14 +123,16 @@ void setScale(int newScale[]) {
 void loop() {
   currentTime = millis();
 
-  if (getZoneAverage(pixels, zone_scale) > 25) {
+  if (getZoneAverage(pixels, zone_scale) > threshold_warm) {
     setScale(pentatonicMajor);
+  } else if (pixels[16] > threshold_warm) {
+    setScale(chaos);
   } else {
     setScale(pentatonicMinor);
   }
 
   float sensorAvg = getSensorAverage(pixels);
-  float crushFactor = 16 - map(sensorAvg, 23, 35, 0.0, 1.0) * 13;
+  float crushFactor = 16 - map(sensorAvg, threshold_warmer, 35, 0.0, 1.0) * 13;
   bitcrusher1.bits(crushFactor);
 
   playBlink();
@@ -136,8 +140,7 @@ void loop() {
   playBass();
 
   if (currentTime - percPreviousTime >= 250.0) {
-    float avg = getZoneAverage(pixels, zone_perc);
-    if (random(100) >= 50 && avg > 23) {
+    if (random(100) >= 50 && getZoneAverage(pixels, zone_perc) > threshold_warm) {
       playPerc();
     }
     percPreviousTime = currentTime;
@@ -155,8 +158,9 @@ void loop() {
 
 void playBlink() {
   if (currentTime - blinkPreviousTime >= 1000.0) {    
-    bleep.frequency(bleepNote.getRandomNoteFromScale(scale, 4, 7));
-    bleepEnv.decay(random(100, 1000));
+    bleep.frequency(bleepNote.getRandomNoteFromScale(scale, 4, 6));
+    bleepEnv.attack(random(10, 500));
+    bleepEnv.decay(random(100, 2000));
     bleepEnv.noteOn();
     bleepDel.delay(0, random(100, 300));
     blinkPreviousTime = currentTime;
@@ -164,12 +168,12 @@ void playBlink() {
 }
 
 void playPluck() {
-  if (currentTime - pluckPreviousTime >= 500.0) {
+  if (currentTime - pluckPreviousTime >= 250.0) {
     float avg = getZoneAverage(pixels, zone_pluck_vel);
-    if (avg > 23) {
+    if (avg > threshold_warm && random(100) >= 85) {
       pluck.noteOn(
-        pluckNote.getRandomNoteFromScale(scale, 5, 6),
-        map(avg, 23, 42, 0.0, 1.0)
+        pluckNote.getRandomNoteFromScale(scale, 5, 7),
+        map(avg, threshold_warm, 42, 0.0, 1.0)
       );
     }
     pluckPreviousTime = currentTime;
@@ -180,7 +184,7 @@ void playBass() {
   if (currentTime - bassPreviousTime >= 3000.0) {
     bass.frequency(bassNote.getRandomNoteFromScale(scale, 2, 4));
     float avg = getZoneAverage(pixels, zone_bass);
-    if (avg > 23) {
+    if (avg > threshold_warm) {
       bass.amplitude(0.75);
       bass.begin(WAVEFORM_SAWTOOTH);
       bassFlt.frequency(1300);
