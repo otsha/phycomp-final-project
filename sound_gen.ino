@@ -14,40 +14,50 @@
 AudioSynthWaveform       bleep;      //xy=125,146
 AudioSynthWaveform       bass;      //xy=140,488
 AudioEffectEnvelope      bleepEnv;      //xy=347,181
+AudioSynthSimpleDrum     perc;          //xy=382,648
 AudioEffectEnvelope      bassEnv;      //xy=390,543
 AudioEffectDelay         bleepDel;         //xy=486,372
-AudioSynthSimpleDrum     perc;          //xy=559,707
+AudioSynthKarplusStrong  pluck;        //xy=564,723
+AudioFilterStateVariable bassFlt;        //xy=606,501
 AudioMixer4              bleepDelMix;         //xy=678,250
 AudioMixer4              mixer1;         //xy=919,466
-AudioOutputI2S           i2s1;           //xy=1067,369
+AudioOutputI2S           i2s1;           //xy=1116,369
 AudioConnection          patchCord1(bleep, bleepEnv);
 AudioConnection          patchCord2(bass, bassEnv);
 AudioConnection          patchCord3(bleepEnv, bleepDel);
 AudioConnection          patchCord4(bleepEnv, 0, bleepDelMix, 0);
-AudioConnection          patchCord5(bassEnv, 0, mixer1, 1);
-AudioConnection          patchCord6(bleepDel, 0, bleepDelMix, 1);
-AudioConnection          patchCord7(perc, 0, mixer1, 2);
-AudioConnection          patchCord8(bleepDelMix, 0, mixer1, 0);
-AudioConnection          patchCord9(mixer1, 0, i2s1, 0);
-AudioConnection          patchCord10(mixer1, 0, i2s1, 1);
+AudioConnection          patchCord5(perc, 0, mixer1, 2);
+AudioConnection          patchCord6(bassEnv, 0, bassFlt, 0);
+AudioConnection          patchCord7(bleepDel, 0, bleepDelMix, 1);
+AudioConnection          patchCord8(pluck, 0, mixer1, 3);
+AudioConnection          patchCord9(bassFlt, 0, mixer1, 1);
+AudioConnection          patchCord10(bleepDelMix, 0, mixer1, 0);
+AudioConnection          patchCord11(mixer1, 0, i2s1, 0);
+AudioConnection          patchCord12(mixer1, 0, i2s1, 1);
 // GUItool: end automatically generated code
+
+
 
 
 AudioControlSGTL5000 codec;
 
-float pTime;
-float bpTime;
-float dTime;
+float currentTime;
+float blinkPreviousTime;
+float pluckPreviousTime;
+float bassPreviousTime;
+float percPreviousTime;
 
 Note bleepNote;
+Note pluckNote;
 Note bassNote;
 Note drumNote;
 
 GridEYE sensor;
 int pixels[64];
 
-LFO lfo(1);
-LFO lfo2(8);
+LFO bassLFO(4);
+LFO percLFO(1);
+LFO percLFO2(8);
 
 void setup() {
   Serial.begin(9600);
@@ -68,6 +78,8 @@ void setup() {
   bassEnv.attack(1000);
   bassEnv.sustain(0);
   bassEnv.decay(1000);
+  bassFlt.frequency(15000);
+  bassFlt.resonance(0.7);
 
   perc.frequency(200);
   perc.length(50);
@@ -87,52 +99,106 @@ void setup() {
 
   sensor.begin();
 
-  pTime = millis();
-  bpTime = millis();
-  dTime = millis();
+  blinkPreviousTime = millis();
+  pluckPreviousTime = millis();
+  bassPreviousTime = millis();
+  percPreviousTime = millis();
+  currentTime = millis();
 }
 
-int scale[] = {C, D, E, G, A};
+int pentatonicMajor[5] = {C, D, E, G, A};
+int pentatonicMinor[5] = {A, B, C, E, G};
+int scale[5];
+
+void setScale(int newScale[]) {
+  for (int i = 0; i < 5; i++) {
+    scale[i] = newScale[i];
+  }
+}
 
 void loop() {
-  float cTime = millis();
-  if (cTime - pTime >= 1000.0) {    
+  currentTime = millis();
+
+  if (getZoneAverage(pixels, zone_scale) > 25) {
+    setScale(pentatonicMajor);
+  } else {
+    setScale(pentatonicMinor);
+  }
+
+  playBlink();
+  playPluck();
+  playBass();
+
+  if (currentTime - percPreviousTime >= 250.0) {
+    float avg = getZoneAverage(pixels, zone_perc);
+    if (random(100) >= 50 && avg > 23) {
+      playPerc();
+    }
+    percPreviousTime = currentTime;
+    
+    readSensor();
+    //outputSerialData(pixels);
+  }
+
+  bassLFO.update();
+  bassFlt.resonance(2 + (1.25 * bassLFO.getValue()));
+
+  percLFO.update();
+  percLFO2.update();
+}
+
+void playBlink() {
+  if (currentTime - blinkPreviousTime >= 1000.0) {    
     bleep.frequency(bleepNote.getRandomNoteFromScale(scale, 4, 7));
     bleepEnv.decay(random(100, 1000));
     bleepEnv.noteOn();
     bleepDel.delay(0, random(100, 300));
-    pTime = cTime;
+    blinkPreviousTime = currentTime;
   }
+}
 
-  if (cTime - bpTime >= 3000.0) {
-    bass.frequency(bassNote.getRandomNoteFromScale(scale, 2, 4));
-    bassEnv.noteOn();
-    bpTime = cTime;
-  }
-
-  if (cTime - dTime >= 250.0) {
-    float avg = getZoneAverage(pixels, zone_perc);
-    if (random(100) >= 50 && avg > 23) {
-
-      float freq = 300.0 + (lfo.getValue() * 200);
-      perc.frequency(freq);
-
-      if (random(100) >= 75) {
-        perc.pitchMod(abs(lfo2.getValue()));
-      } else {
-        perc.pitchMod(0.65);
-      }
-
-      perc.noteOn();
+void playPluck() {
+  if (currentTime - pluckPreviousTime >= 500.0) {
+    float avg = getZoneAverage(pixels, zone_pluck_vel);
+    if (avg > 23) {
+      pluck.noteOn(
+        pluckNote.getRandomNoteFromScale(scale, 5, 6),
+        map(avg, 23, 42, 0.0, 1.0)
+      );
     }
-    dTime = cTime;
-    
-    readSensor();
-    outputSerialData(pixels);
+    pluckPreviousTime = currentTime;
+  }
+}
+
+void playBass() {
+  if (currentTime - bassPreviousTime >= 3000.0) {
+    bass.frequency(bassNote.getRandomNoteFromScale(scale, 2, 4));
+    float avg = getZoneAverage(pixels, zone_bass);
+    if (avg > 23) {
+      bass.amplitude(0.75);
+      bass.begin(WAVEFORM_SAWTOOTH);
+      bassFlt.frequency(1300);
+    } else {
+      bass.amplitude(1);
+      bass.begin(WAVEFORM_TRIANGLE);
+      bassFlt.frequency(15000);
+    }
+    bassEnv.noteOn();
+    bassPreviousTime = currentTime;
+  }
+}
+
+void playPerc() {
+  float freq = 300.0 + (percLFO.getValue() * 200);
+  perc.frequency(freq);
+
+  if (random(100) >= 75) {
+    perc.pitchMod(abs(percLFO2.getValue()));
+  } else {
+    perc.pitchMod(0.65);
   }
 
-  lfo.update();
-  lfo2.update();
+  perc.noteOn();  
 }
 
 void readSensor() {
