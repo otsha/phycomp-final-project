@@ -59,6 +59,7 @@ void setup() {
   Serial.begin(9600);
   Wire.begin();
 
+  bleep.begin(WAVEFORM_SINE);
   bleep.frequency(440);
   bleep.amplitude(1);
   bleepEnv.attack(25);
@@ -75,7 +76,7 @@ void setup() {
   bassEnv.sustain(0);
   bassEnv.decay(1000);
   bassFlt.frequency(15000);
-  bassFlt.resonance(0.7);
+  bassFlt.resonance(2.5);
 
   perc.frequency(200);
   perc.length(50);
@@ -90,8 +91,8 @@ void setup() {
 
   mixer1.gain(0, 0.15);
   mixer1.gain(1, 0.20);
-  mixer1.gain(2, 0.15);
-  mixer1.gain(3, 0.25);
+  mixer1.gain(2, 0.25);
+  mixer1.gain(3, 1);
 
   bitcrusher1.bits(16);
 
@@ -120,11 +121,11 @@ void setScale(int newScale[]) {
 void loop() {  
   clk.update();
 
+  setScale(pentatonicMajor);
+  
   // Scale shifting
   if (getZoneAverage(pixels, zone_scale) > threshold_warm) {
     setScale(pentatonicMajor);
-  } else if (pixels[16] > threshold_warm) {
-    setScale(chaos);
   } else {
     setScale(pentatonicMinor);
   }
@@ -149,7 +150,7 @@ void loop() {
 
   // LFO Stuff
   bassLFO.update();
-  bassFlt.resonance(2 + (1.25 * bassLFO.getValue()));
+  bassFlt.frequency(2000 + (1000 * bassLFO.getValue()));
 
   percLFO.update();
   percLFO2.update();
@@ -158,10 +159,21 @@ void loop() {
 void playBlink() {
   if (clk.counterOver(0) == true) {    
     bleep.frequency(bleepNote.getRandomNoteFromScale(scale, 4, 6));
-    bleepEnv.attack(random(10, 500));
-    bleepEnv.decay(random(100, 2000));
-    bleepEnv.noteOn();
-    bleepDel.delay(0, random(100, 300));
+    
+    if (getZoneAverage(pixels, zone_bleep_interval) > threshold_warm) {
+      clk.setInterval(0, 333.33);
+      bleepEnv.attack(10);
+      bleepEnv.decay(50);
+    } else {
+      clk.setInterval(0, 1000.0);
+      bleepEnv.attack(random(10, 500));
+      bleepEnv.decay(random(100, 2000));
+    }
+
+    if (random(100) > 40) {
+      bleepDel.delay(0, random(100, 300));
+      bleepEnv.noteOn();
+    }
     clk.setPrevious(0);
   }
 }
@@ -196,6 +208,12 @@ void playPerc() {
         perc.pitchMod(0.65);
       }
 
+      if (pixels[60] > threshold_warmer) {
+        perc.length(random(100, 150));
+      } else {
+        perc.length(50);
+      }
+
       perc.noteOn();  
 
     }
@@ -205,6 +223,12 @@ void playPerc() {
 
 void playPluck() {
   if (clk.counterOver(3) == true) {
+    if (getZoneAverage(pixels, zone_pluck_interval) > threshold_warm) {
+      clk.setInterval(3, 62.5);
+    } else {
+      clk.setInterval(3, 250.0);
+    }
+
     float avg = getZoneAverage(pixels, zone_pluck_vel);
     if (avg > threshold_warm && random(100) >= 85) {
       pluck.noteOn(
