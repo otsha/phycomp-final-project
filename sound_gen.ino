@@ -88,7 +88,7 @@ void setup() {
   mixer1.gain(0, 0.15);
   mixer1.gain(1, 0.20);
   mixer1.gain(2, 0.15);
-  mixer1.gain(3, 0.15);
+  mixer1.gain(3, 0.25);
 
   bitcrusher1.bits(16);
 
@@ -132,8 +132,8 @@ void loop() {
   }
 
   float sensorAvg = getSensorAverage(pixels);
-  float crushFactor = 16 - map(sensorAvg, threshold_warmer, 35, 0.0, 1.0) * 13;
-  bitcrusher1.bits(crushFactor);
+  float crushFactor = 16 - map(sensorAvg, threshold_warmer, 35, 0.0, 1.0) * 14;
+  bitcrusher1.bits(max(4, crushFactor));
 
   playBlink();
   playPluck();
