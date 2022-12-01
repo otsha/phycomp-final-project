@@ -2,6 +2,7 @@
 #include "Freq.h"
 #include "SensorUtility.h"
 #include "LFO.h"
+#include "Clock.h"
 #include <SparkFun_GridEYE_Arduino_Library.h>
 
 #include <Audio.h>
@@ -40,20 +41,15 @@ AudioConnection          patchCord13(bitcrusher1, 0, i2s1, 1);
 
 
 AudioControlSGTL5000 codec;
+GridEYE sensor;
+int pixels[64];
 
-float currentTime;
-float blinkPreviousTime;
-float pluckPreviousTime;
-float bassPreviousTime;
-float percPreviousTime;
+Clock clk;
 
 Note bleepNote;
 Note pluckNote;
 Note bassNote;
 Note drumNote;
-
-GridEYE sensor;
-int pixels[64];
 
 LFO bassLFO(4);
 LFO percLFO(1);
@@ -85,6 +81,13 @@ void setup() {
   perc.length(50);
   perc.pitchMod(0.65);
 
+  // Set clock intervals
+  clk.setInterval(0, 1000.0); // bleep
+  clk.setInterval(1, 3000.0); // bass
+  clk.setInterval(2, 250.0); // perc
+  clk.setInterval(3, 250.0); // pluck
+  clk.setInterval(7, 250.0); // IR sensor read interval
+
   mixer1.gain(0, 0.15);
   mixer1.gain(1, 0.20);
   mixer1.gain(2, 0.15);
@@ -101,12 +104,6 @@ void setup() {
   AudioMemoryUsageMaxReset();
 
   sensor.begin();
-
-  blinkPreviousTime = millis();
-  pluckPreviousTime = millis();
-  bassPreviousTime = millis();
-  percPreviousTime = millis();
-  currentTime = millis();
 }
 
 int pentatonicMajor[5] = {C, D, E, G, A};
@@ -120,9 +117,10 @@ void setScale(int newScale[]) {
   }
 }
 
-void loop() {
-  currentTime = millis();
+void loop() {  
+  clk.update();
 
+  // Scale shifting
   if (getZoneAverage(pixels, zone_scale) > threshold_warm) {
     setScale(pentatonicMajor);
   } else if (pixels[16] > threshold_warm) {
@@ -131,24 +129,25 @@ void loop() {
     setScale(pentatonicMinor);
   }
 
+  // Bit crushing
   float sensorAvg = getSensorAverage(pixels);
   float crushFactor = 16 - map(sensorAvg, threshold_warmer, 35, 0.0, 1.0) * 14;
   bitcrusher1.bits(max(4, crushFactor));
 
+  // Play instruments
   playBlink();
   playPluck();
   playBass();
+  playPerc();
 
-  if (currentTime - percPreviousTime >= 250.0) {
-    if (random(100) >= 50 && getZoneAverage(pixels, zone_perc) > threshold_warm) {
-      playPerc();
-    }
-    percPreviousTime = currentTime;
-    
+  // Read (and output) sensor
+  if (clk.counterOver(7)) {
     readSensor();
     outputSerialData(pixels);
+    clk.setPrevious(7);
   }
 
+  // LFO Stuff
   bassLFO.update();
   bassFlt.resonance(2 + (1.25 * bassLFO.getValue()));
 
@@ -157,31 +156,18 @@ void loop() {
 }
 
 void playBlink() {
-  if (currentTime - blinkPreviousTime >= 1000.0) {    
+  if (clk.counterOver(0) == true) {    
     bleep.frequency(bleepNote.getRandomNoteFromScale(scale, 4, 6));
     bleepEnv.attack(random(10, 500));
     bleepEnv.decay(random(100, 2000));
     bleepEnv.noteOn();
     bleepDel.delay(0, random(100, 300));
-    blinkPreviousTime = currentTime;
-  }
-}
-
-void playPluck() {
-  if (currentTime - pluckPreviousTime >= 250.0) {
-    float avg = getZoneAverage(pixels, zone_pluck_vel);
-    if (avg > threshold_warm && random(100) >= 85) {
-      pluck.noteOn(
-        pluckNote.getRandomNoteFromScale(scale, 5, 7),
-        map(avg, threshold_warm, 42, 0.0, 1.0)
-      );
-    }
-    pluckPreviousTime = currentTime;
+    clk.setPrevious(0);
   }
 }
 
 void playBass() {
-  if (currentTime - bassPreviousTime >= 3000.0) {
+  if (clk.counterOver(1) == true) {
     bass.frequency(bassNote.getRandomNoteFromScale(scale, 2, 4));
     float avg = getZoneAverage(pixels, zone_bass);
     if (avg > threshold_warm) {
@@ -194,21 +180,40 @@ void playBass() {
       bassFlt.frequency(15000);
     }
     bassEnv.noteOn();
-    bassPreviousTime = currentTime;
+    clk.setPrevious(1);
   }
 }
 
 void playPerc() {
-  float freq = 300.0 + (percLFO.getValue() * 200);
-  perc.frequency(freq);
+  if (clk.counterOver(2)) {
+    if (random(100) >= 50 && getZoneAverage(pixels, zone_perc) > threshold_warm) {
+      float freq = 300.0 + (percLFO.getValue() * 200);
+      perc.frequency(freq);
 
-  if (random(100) >= 75) {
-    perc.pitchMod(abs(percLFO2.getValue()));
-  } else {
-    perc.pitchMod(0.65);
+      if (random(100) >= 75) {
+        perc.pitchMod(abs(percLFO2.getValue()));
+      } else {
+        perc.pitchMod(0.65);
+      }
+
+      perc.noteOn();  
+
+    }
+    clk.setPrevious(2);
   }
+}
 
-  perc.noteOn();  
+void playPluck() {
+  if (clk.counterOver(3) == true) {
+    float avg = getZoneAverage(pixels, zone_pluck_vel);
+    if (avg > threshold_warm && random(100) >= 85) {
+      pluck.noteOn(
+        pluckNote.getRandomNoteFromScale(scale, 5, 7),
+        map(avg, threshold_warm, 42, 0.0, 1.0)
+      );
+    }
+    clk.setPrevious(3);
+  }
 }
 
 void readSensor() {
