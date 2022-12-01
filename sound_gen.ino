@@ -12,31 +12,35 @@
 #include <SerialFlash.h>
 
 // GUItool: begin automatically generated code
-AudioSynthWaveform       bleep;      //xy=125,146
+AudioSynthWaveform       bleepFMShape;      //xy=103,134
 AudioSynthWaveform       bass;      //xy=140,488
-AudioEffectEnvelope      bleepEnv;      //xy=347,181
+AudioSynthWaveform       bleepFM;      //xy=158,47
+AudioSynthWaveformModulated bleep;   //xy=264,127
 AudioSynthSimpleDrum     perc;          //xy=382,648
 AudioEffectEnvelope      bassEnv;      //xy=390,543
+AudioEffectEnvelope      bleepEnv;      //xy=408,198
 AudioEffectDelay         bleepDel;         //xy=486,372
 AudioSynthKarplusStrong  pluck;        //xy=564,723
 AudioFilterStateVariable bassFlt;        //xy=677,384
 AudioMixer4              bleepDelMix;         //xy=678,250
 AudioMixer4              mixer1;         //xy=903,408
 AudioEffectBitcrusher    bitcrusher1;    //xy=1077,406
-AudioOutputI2S           i2s1;           //xy=1281,409
-AudioConnection          patchCord1(bleep, bleepEnv);
+AudioOutputI2S           i2s1;           //xy=1275,404
+AudioConnection          patchCord1(bleepFMShape, 0, bleep, 1);
 AudioConnection          patchCord2(bass, bassEnv);
-AudioConnection          patchCord3(bleepEnv, bleepDel);
-AudioConnection          patchCord4(bleepEnv, 0, bleepDelMix, 0);
+AudioConnection          patchCord3(bleepFM, 0, bleep, 0);
+AudioConnection          patchCord4(bleep, bleepEnv);
 AudioConnection          patchCord5(perc, 0, mixer1, 2);
 AudioConnection          patchCord6(bassEnv, 0, bassFlt, 0);
-AudioConnection          patchCord7(bleepDel, 0, bleepDelMix, 1);
-AudioConnection          patchCord8(pluck, 0, mixer1, 3);
-AudioConnection          patchCord9(bassFlt, 0, mixer1, 1);
-AudioConnection          patchCord10(bleepDelMix, 0, mixer1, 0);
-AudioConnection          patchCord11(mixer1, bitcrusher1);
-AudioConnection          patchCord12(bitcrusher1, 0, i2s1, 0);
-AudioConnection          patchCord13(bitcrusher1, 0, i2s1, 1);
+AudioConnection          patchCord7(bleepEnv, bleepDel);
+AudioConnection          patchCord8(bleepEnv, 0, bleepDelMix, 0);
+AudioConnection          patchCord9(bleepDel, 0, bleepDelMix, 1);
+AudioConnection          patchCord10(pluck, 0, mixer1, 3);
+AudioConnection          patchCord11(bassFlt, 0, mixer1, 1);
+AudioConnection          patchCord12(bleepDelMix, 0, mixer1, 0);
+AudioConnection          patchCord13(mixer1, bitcrusher1);
+AudioConnection          patchCord14(bitcrusher1, 0, i2s1, 0);
+AudioConnection          patchCord15(bitcrusher1, 0, i2s1, 1);
 // GUItool: end automatically generated code
 
 
@@ -59,7 +63,15 @@ void setup() {
   Serial.begin(9600);
   Wire.begin();
 
+  bleepFM.begin(WAVEFORM_TRIANGLE_VARIABLE); // sine
+  bleepFM.amplitude(0.05);
+
+  bleepFMShape.begin(WAVEFORM_SINE);
+  bleepFMShape.frequency(A);
+  bleepFMShape.amplitude(1);
+
   bleep.begin(WAVEFORM_SINE);
+  bleep.phaseModulation(180);
   bleep.frequency(440);
   bleep.amplitude(1);
   bleepEnv.attack(25);
@@ -158,7 +170,11 @@ void loop() {
 
 void playBlink() {
   if (clk.counterOver(0) == true) {    
-    bleep.frequency(bleepNote.getRandomNoteFromScale(scale, 4, 6));
+    float freq = bleepNote.getRandomNoteFromScale(scale, 4, 6);
+    bleep.frequency(freq);
+    bleepFM.frequency(freq * 4.0);
+
+    bleepFM.amplitude(map(getZoneAverage(pixels, zone_bleep_fm), 18, 35, 0, 0.5));
     
     if (getZoneAverage(pixels, zone_bleep_interval) > threshold_warm) {
       clk.setInterval(0, 333.33);
@@ -166,8 +182,8 @@ void playBlink() {
       bleepEnv.decay(50);
     } else {
       clk.setInterval(0, 1000.0);
-      bleepEnv.attack(random(10, 500));
-      bleepEnv.decay(random(100, 2000));
+      bleepEnv.attack(5);
+      bleepEnv.decay(random(50, 2000));
     }
 
     if (random(100) > 40) {
