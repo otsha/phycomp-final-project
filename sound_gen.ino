@@ -13,34 +13,44 @@
 
 // GUItool: begin automatically generated code
 AudioSynthWaveform       bleepFMShape;      //xy=103,134
-AudioSynthWaveform       bass;      //xy=140,488
+AudioSynthWaveform       bass;      //xy=108,425
 AudioSynthWaveform       bleepFM;      //xy=158,47
 AudioSynthWaveformModulated bleep;   //xy=264,127
-AudioSynthSimpleDrum     perc;          //xy=382,648
-AudioEffectEnvelope      bassEnv;      //xy=390,543
-AudioEffectEnvelope      bleepEnv;      //xy=408,198
-AudioEffectDelay         bleepDel;         //xy=486,372
-AudioSynthKarplusStrong  pluck;        //xy=564,723
-AudioFilterStateVariable bassFlt;        //xy=677,384
+AudioEffectEnvelope      bassEnv;      //xy=342,425
+AudioEffectEnvelope      bleepEnv;      //xy=353,205
+AudioSynthKarplusStrong  pluck;        //xy=470,512
+AudioEffectDelay         bleepDel;         //xy=488,318
+AudioSynthNoiseWhite     hat;         //xy=520,746
+AudioFilterStateVariable bassFlt;        //xy=558,423
+AudioSynthSimpleDrum     perc;          //xy=567,673
 AudioMixer4              bleepDelMix;         //xy=678,250
-AudioMixer4              mixer1;         //xy=903,408
-AudioEffectBitcrusher    bitcrusher1;    //xy=1077,406
-AudioOutputI2S           i2s1;           //xy=1275,404
+AudioEffectGranular      pluckGranularFX;      //xy=680,480
+AudioEffectEnvelope      hatEnv;      //xy=693,739
+AudioMixer4              percMixer;         //xy=884,628
+AudioMixer4              melodicMixer;         //xy=886,321
+AudioMixer4              mainMixer;         //xy=1064,464
+AudioEffectBitcrusher    bitcrusher1;    //xy=1210,593
+AudioOutputI2S           i2s1;           //xy=1325,723
 AudioConnection          patchCord1(bleepFMShape, 0, bleep, 1);
 AudioConnection          patchCord2(bass, bassEnv);
 AudioConnection          patchCord3(bleepFM, 0, bleep, 0);
 AudioConnection          patchCord4(bleep, bleepEnv);
-AudioConnection          patchCord5(perc, 0, mixer1, 2);
-AudioConnection          patchCord6(bassEnv, 0, bassFlt, 0);
-AudioConnection          patchCord7(bleepEnv, bleepDel);
-AudioConnection          patchCord8(bleepEnv, 0, bleepDelMix, 0);
+AudioConnection          patchCord5(bassEnv, 0, bassFlt, 0);
+AudioConnection          patchCord6(bleepEnv, bleepDel);
+AudioConnection          patchCord7(bleepEnv, 0, bleepDelMix, 0);
+AudioConnection          patchCord8(pluck, pluckGranularFX);
 AudioConnection          patchCord9(bleepDel, 0, bleepDelMix, 1);
-AudioConnection          patchCord10(pluck, 0, mixer1, 3);
-AudioConnection          patchCord11(bassFlt, 0, mixer1, 1);
-AudioConnection          patchCord12(bleepDelMix, 0, mixer1, 0);
-AudioConnection          patchCord13(mixer1, bitcrusher1);
-AudioConnection          patchCord14(bitcrusher1, 0, i2s1, 0);
-AudioConnection          patchCord15(bitcrusher1, 0, i2s1, 1);
+AudioConnection          patchCord10(hat, hatEnv);
+AudioConnection          patchCord11(bassFlt, 0, melodicMixer, 1);
+AudioConnection          patchCord12(perc, 0, percMixer, 0);
+AudioConnection          patchCord13(bleepDelMix, 0, melodicMixer, 0);
+AudioConnection          patchCord14(pluckGranularFX, 0, melodicMixer, 2);
+AudioConnection          patchCord15(hatEnv, 0, percMixer, 1);
+AudioConnection          patchCord16(percMixer, 0, mainMixer, 1);
+AudioConnection          patchCord17(melodicMixer, 0, mainMixer, 0);
+AudioConnection          patchCord18(mainMixer, bitcrusher1);
+AudioConnection          patchCord19(bitcrusher1, 0, i2s1, 0);
+AudioConnection          patchCord20(bitcrusher1, 0, i2s1, 1);
 // GUItool: end automatically generated code
 
 
@@ -58,12 +68,19 @@ Note drumNote;
 LFO bassLFO(4);
 LFO percLFO(1);
 LFO percLFO2(8);
+LFO hatLFO(4);
+
+
+#define GRANULAR_MEMORY_SIZE 12800  // (from example) enough for 290 ms at 44.1 kHz
+int16_t grains[GRANULAR_MEMORY_SIZE];
 
 void setup() {
   Serial.begin(9600);
   Wire.begin();
 
-  bleepFM.begin(WAVEFORM_TRIANGLE_VARIABLE); // sine
+  // Instrument setup
+
+  bleepFM.begin(WAVEFORM_TRIANGLE_VARIABLE);
   bleepFM.amplitude(0.05);
 
   bleepFMShape.begin(WAVEFORM_SINE);
@@ -90,24 +107,41 @@ void setup() {
   bassFlt.frequency(15000);
   bassFlt.resonance(2.5);
 
+  pluckGranularFX.begin(grains, GRANULAR_MEMORY_SIZE);
+  pluckGranularFX.setSpeed(0.5);
+
   perc.frequency(200);
   perc.length(50);
   perc.pitchMod(0.65);
+
+  hat.amplitude(1);
+  hatEnv.attack(1.0);
+  hatEnv.sustain(0);
+  hatEnv.decay(10.0);
 
   // Set clock intervals
   clk.setInterval(0, 1000.0); // bleep
   clk.setInterval(1, 3000.0); // bass
   clk.setInterval(2, 250.0); // perc
   clk.setInterval(3, 250.0); // pluck
+  clk.setInterval(4, 125.0); // hat
   clk.setInterval(7, 250.0); // IR sensor read interval
 
-  mixer1.gain(0, 0.15);
-  mixer1.gain(1, 0.20);
-  mixer1.gain(2, 0.25);
-  mixer1.gain(3, 1);
+  // Set mixer levels
+  melodicMixer.gain(0, 0.15); // bleep
+  melodicMixer.gain(1, 0.20); // bass
+  melodicMixer.gain(2, 1); // pluck
 
+  percMixer.gain(0, 0.25); // perc
+  percMixer.gain(1, 0.05); // hat
+
+  mainMixer.gain(0, 1);
+  mainMixer.gain(1, 1);
+
+  // No bitcrush by default
   bitcrusher1.bits(16);
 
+  // Teensy setup
   AudioMemory(127);
 
   codec.enable();
@@ -116,12 +150,12 @@ void setup() {
   AudioProcessorUsageMaxReset();
   AudioMemoryUsageMaxReset();
 
+  // Start IR grid
   sensor.begin();
 }
 
 int pentatonicMajor[5] = {C, D, E, G, A};
 int pentatonicMinor[5] = {A, B, C, E, G};
-int chaos[5] = {C, CSharp, E, F, G};
 int scale[5];
 
 void setScale(int newScale[]) {
@@ -148,10 +182,11 @@ void loop() {
   bitcrusher1.bits(max(4, crushFactor));
 
   // Play instruments
-  playBlink();
+  playBleep();
   playPluck();
   playBass();
   playPerc();
+  playHat();
 
   // Read (and output) sensor
   if (clk.counterOver(7)) {
@@ -166,9 +201,10 @@ void loop() {
 
   percLFO.update();
   percLFO2.update();
+  hatLFO.update();
 }
 
-void playBlink() {
+void playBleep() {
   if (clk.counterOver(0) == true) {    
     float freq = bleepNote.getRandomNoteFromScale(scale, 4, 6);
     bleep.frequency(freq);
@@ -186,7 +222,7 @@ void playBlink() {
       bleepEnv.decay(random(50, 2000));
     }
 
-    if (random(100) > 40) {
+    if (random(100) > 40 && pixels[32] <= threshold_warm) {
       bleepDel.delay(0, random(100, 300));
       bleepEnv.noteOn();
     }
@@ -239,6 +275,12 @@ void playPerc() {
 
 void playPluck() {
   if (clk.counterOver(3) == true) {
+    if (pixels[14] > threshold_warm) {
+      pluckGranularFX.beginPitchShift(4000);
+    } else {
+      pluckGranularFX.stop();
+    }
+
     if (getZoneAverage(pixels, zone_pluck_interval) > threshold_warm) {
       clk.setInterval(3, 62.5);
     } else {
@@ -253,6 +295,18 @@ void playPluck() {
       );
     }
     clk.setPrevious(3);
+  }
+}
+
+void playHat() {
+  if (clk.counterOver(4) == true) {
+    hatEnv.decay(15.0 + (hatLFO.getValue() * 10.0));
+    
+    if (pixels[32] > threshold_warm && random(100) >= 66) {
+      hatEnv.noteOn();
+    }
+    
+    clk.setPrevious(4);
   }
 }
 
