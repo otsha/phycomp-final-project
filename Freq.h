@@ -1,3 +1,8 @@
+/**
+* Base frequencies C0-B0.
+* See the setFrequency function in Note.h
+* for getting notes in different octaves.
+*/
 enum Freq {
   C = 16350,
   CSharp = 17320,

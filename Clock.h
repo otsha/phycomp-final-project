@@ -1,3 +1,6 @@
+/**
+* Simple 8-clock orchestrator
+*/
 class Clock {
   public:
     Clock();

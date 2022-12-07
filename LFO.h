@@ -1,5 +1,8 @@
 #include <math.h>
 
+/**
+* Simple sine wave LFO
+*/
 class LFO {
   public:
     LFO(float rate);

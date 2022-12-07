@@ -165,11 +165,12 @@ void setScale(int newScale[]) {
 }
 
 void loop() {  
+  // Update clock
   clk.update();
-
-  setScale(pentatonicMajor);
   
   // Scale shifting
+  setScale(pentatonicMajor);
+
   if (getZoneAverage(pixels, zone_scale) > threshold_warm) {
     setScale(pentatonicMajor);
   } else {
@@ -191,7 +192,7 @@ void loop() {
   // Read (and output) sensor
   if (clk.counterOver(7)) {
     readSensor();
-    outputSerialData(pixels);
+    // DEBUG: outputSerialData(pixels);
     clk.setPrevious(7);
   }
 
@@ -204,12 +205,20 @@ void loop() {
   hatLFO.update();
 }
 
+/**
+* Play the "bleep" instrument
+* - Note frequency betweeen C4-B6
+* - FM amplitude is set based on temperature in a sensor zone
+* - Set the interval to 1000ms or 333.33ms based on whether a zone is active
+* - Notes are not played if the hat instrument is playing (sensor pixel 32)
+* - If active, probability that a note is played is 56%
+* - If active, delay is set randomly between 100-300ms
+*/
 void playBleep() {
   if (clk.counterOver(0) == true) {    
     float freq = bleepNote.getRandomNoteFromScale(scale, 4, 6);
     bleep.frequency(freq);
     bleepFM.frequency(freq * 4.0);
-
     bleepFM.amplitude(map(getZoneAverage(pixels, zone_bleep_fm), 18, 35, 0, 0.5));
     
     if (getZoneAverage(pixels, zone_bleep_interval) > threshold_warm) {
@@ -226,14 +235,24 @@ void playBleep() {
       bleepDel.delay(0, random(100, 300));
       bleepEnv.noteOn();
     }
+    
     clk.setPrevious(0);
   }
 }
 
+/**
+* Play the bass instrument
+* - Interval 3000ms
+* - Note frequency between C2-B4
+* - If zone_bass is active, change waveform from a triangle to a sawtooth
+* - If the waveform is a sawtooth, filter frequencies >1300Hz out
+*/
 void playBass() {
   if (clk.counterOver(1) == true) {
     bass.frequency(bassNote.getRandomNoteFromScale(scale, 2, 4));
+
     float avg = getZoneAverage(pixels, zone_bass);
+
     if (avg > threshold_warm) {
       bass.amplitude(0.75);
       bass.begin(WAVEFORM_SAWTOOTH);
@@ -243,11 +262,21 @@ void playBass() {
       bass.begin(WAVEFORM_TRIANGLE);
       bassFlt.frequency(15000);
     }
+
     bassEnv.noteOn();
     clk.setPrevious(1);
   }
 }
 
+/**
+* Play the "perc" instrument (drum / laser / percussion)
+* - Interval 250ms
+* - Only played 50% of the time zone_perc is active
+* - Base frequency set based on an LFO value
+* - 25% chance when playing to set the starting frequency (resulting in glissando up/down)
+* to a value from an LFO
+* - If sensor pixel 60 is active, randomize length between 100ms and 150ms
+*/
 void playPerc() {
   if (clk.counterOver(2)) {
     if (random(100) >= 50 && getZoneAverage(pixels, zone_perc) > threshold_warm) {
@@ -267,14 +296,23 @@ void playPerc() {
       }
 
       perc.noteOn();  
-
     }
     clk.setPrevious(2);
   }
 }
 
+/**
+* Play the "pluck" instrument (string instrument)
+* - Note frequencies between C5-B7
+* - Default interval 250ms
+* - If sensor pixel 14 is active, apply granular "freeze" effect
+* - If sensor zone zone_pluck_interval is active, set the interval to 62.5ms
+* - Notes are played 15% of the time zone_pluck is active
+* - Note velocity is determined by the average warmth in zone_pluck_vel
+*/
 void playPluck() {
   if (clk.counterOver(3) == true) {
+
     if (pixels[14] > threshold_warm) {
       pluckGranularFX.beginPitchShift(4000);
     } else {
@@ -287,17 +325,25 @@ void playPluck() {
       clk.setInterval(3, 250.0);
     }
 
-    float avg = getZoneAverage(pixels, zone_pluck_vel);
-    if (avg > threshold_warm && random(100) >= 85) {
+    float activationAvg = getZoneAverage(pixels, zone_pluck);
+    float velocityAvg = getZoneAverage(pixels, zone_pluck_vel);
+
+    if (activationAvg > threshold_warm && random(100) >= 85) {
       pluck.noteOn(
         pluckNote.getRandomNoteFromScale(scale, 5, 7),
-        map(avg, threshold_warm, 42, 0.0, 1.0)
+        map(velocityAvg, threshold_warm, 42, 0.25, 1.0)
       );
     }
+    
     clk.setPrevious(3);
   }
 }
 
+/**
+* Play the hat (white noise) instrument
+* - Interval 125ms
+* - Notes are played 34% of the time when sensor pixel 32 is active
+*/
 void playHat() {
   if (clk.counterOver(4) == true) {
     hatEnv.decay(15.0 + (hatLFO.getValue() * 10.0));
