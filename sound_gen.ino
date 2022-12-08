@@ -192,7 +192,8 @@ void loop() {
   // Read (and output) sensor
   if (clk.counterOver(7)) {
     readSensor();
-    // DEBUG: outputSerialData(pixels);
+    // DEBUG: 
+    outputSerialData(pixels);
     clk.setPrevious(7);
   }
 
